@@ -62,7 +62,7 @@ sudo apt-get install sleuthkit
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/Forensic-Scripts.git
+git clone https://github.com/GuyGuy-59/Forensic-Scripts.git
 cd Forensic-Scripts
 ```
 
