@@ -108,11 +108,12 @@ Use command-line arguments to avoid interactive prompts:
 | `-v` | `--version` | Display script version |
 | `-d DIR` | `--directory DIR` | Specify case directory (avoids interactive input) |
 | `-e FILE` | `--evidence FILE` | Specify evidence file path (avoids interactive input) |
-| `-o OFFSET` | `--offset OFFSET` | Specify partition offset (avoids interactive input) |
+| `-o OFFSET` | `--offset OFFSET` | Specify partition offset in sectors (avoids interactive input) |
+| `-j N` | `--jobs N` | Number of parallel icat extraction jobs (default: 4) |
 
 #### Examples
 
-**Basic usage:**
+**Basic usage (fully interactive):**
 ```bash
 ./Forensic_Collector_Win.sh
 ```
@@ -122,75 +123,102 @@ Use command-line arguments to avoid interactive prompts:
 ./Forensic_Collector_Win.sh -d "Case_2024_001" -e "/mnt/evidence/disk_image.dd" -o 2048
 ```
 
-**Partial parameters (will prompt for missing ones):**
+**Partial parameters — offset selected interactively from mmls output:**
 ```bash
 ./Forensic_Collector_Win.sh -d "Case_2024_001" -e "/mnt/evidence/disk_image.dd"
+```
+
+**With parallel jobs (e.g. 8 threads):**
+```bash
+./Forensic_Collector_Win.sh -d "Case_2024_001" -e "/mnt/evidence/disk_image.dd" -o 2048 -j 8
 ```
 
 ## 📖 Script Documentation
 
 ### Forensic_Collector_Win.sh
 
-**Version:** 2.0
+**Version:** 2.1
 
 **Description:**
-Extracts Windows system artifacts from disk images using SleuthKit (TSK) tools. The script performs comprehensive artifact extraction including registry files, event logs, and system files.
+Extracts Windows system artifacts from disk images using SleuthKit (TSK) tools. The script performs comprehensive artifact extraction including registry hives, event logs, prefetch files, scheduled tasks, and more. Supports raw images as well as VMDK, VHD, VHDX, VDI, and qcow2 formats (auto-converted via `qemu-nbd`).
 
 **Extracted Artifacts:**
-- Master File Table (MFT)
-- Registry hives: SYSTEM, SECURITY, SAM, SOFTWARE
-- User profiles: NTUSER.DAT
-- Event logs: Setup.evtx, System.evtx, Security.evtx, Parameters.evtx, Application.evtx
-- System files: pagefile.sys
-- Complete file system recovery using tsk_recover
+
+*Individual files (full path preserved in output):*
+- `$MFT` and `$LogFile` (NTFS metadata, by fixed inode)
+- Registry hives: `Windows/System32/config/{SYSTEM,SECURITY,SAM,SOFTWARE}`
+- User hives: `NTUSER.DAT`, `UsrClass.dat` (all users)
+- System files: `pagefile.sys`, `hiberfil.sys`, `Windows/INF/setupapi.dev.log`, `Windows/System32/drivers/etc/hosts`
+
+*Full directory collections:*
+- `Windows/Prefetch` — prefetch files (if enabled)
+- `Windows/Tasks` — legacy scheduled tasks
+- `Windows/System32/Tasks` — scheduled tasks (XML format)
+- `Windows/System32/config/RegBack` — registry hive backups
+- `Windows/System32/sru` — SRUM database (if present)
+- `Windows/System32/winevt/Logs` — all Windows event logs (`.evtx`)
+- `Windows/System32/Logfiles/W3SVC1` — IIS logs (if present)
+- `Windows/appcompat/Programs` — Amcache / AppCompat
+- `$Recycle.Bin` — recycle bin metadata
+
+*Deleted file recovery:*
+- Unallocated space carving via `tsk_recover` (deleted/carved files only)
 
 **Features:**
 - ✅ Automatic requirement checking
-- ✅ Encryption detection (BitLocker)
+- ✅ Interactive partition selection from `mmls` output (or `-o` to skip)
+- ✅ Parallel extraction with configurable job count (`-j`)
+- ✅ `tsk_recover` runs concurrently with `icat` extractions
+- ✅ Auto-conversion of non-raw images (VMDK, VHD, qcow2…)
+- ✅ BitLocker encryption detection
 - ✅ MD5 hash calculation for all extracted files
-- ✅ Comprehensive logging with timestamps
-- ✅ Error handling and validation
+- ✅ Full directory structure preserved in output
+- ✅ Comprehensive timestamped logging
 - ✅ Command-line and interactive modes
-- ✅ Progress tracking and summary reports
 
 **Output Structure:**
 ```
 CaseDirectory/
 ├── result_icat/
 │   ├── MFT
-│   ├── SYSTEM
-│   ├── SECURITY
-│   ├── SAM
-│   ├── SOFTWARE
-│   ├── NTUSER.DAT
-│   ├── *.evtx files
-│   ├── pagefile.sys
-│   ├── fls_output.txt
+│   ├── LogFile
+│   ├── Windows/
+│   │   ├── System32/config/{SYSTEM,SECURITY,SAM,SOFTWARE}
+│   │   ├── System32/winevt/Logs/*.evtx
+│   │   ├── System32/sru/
+│   │   ├── System32/Tasks/
+│   │   ├── Prefetch/
+│   │   └── appcompat/Programs/
+│   ├── Users/<username>/NTUSER.DAT
+│   ├── fls_full.txt
 │   └── md5sum.txt
 ├── result_tsk_recover/
-│   └── (recovered file system)
+│   └── (deleted/carved files from unallocated space)
 ├── md5sum.txt
+├── tsk_recover.log
 └── forensic_collector.log
 ```
 
 **Workflow:**
-1. Checks for required tools (mmls, icat, fls, tsk_recover, etc.)
+1. Checks for required tools (`mmls`, `icat`, `fls`, `tsk_recover`, `xxd`, `dd`, `md5sum`)
 2. Creates case directory structure
 3. Validates evidence file and calculates MD5 hash
-4. Displays partition layout
-5. Checks for encryption (BitLocker)
-6. Extracts MFT (Master File Table)
-7. Searches and extracts registry hives and system files
-8. Performs full file system recovery
-9. Generates MD5 hashes for all extracted files
-10. Creates summary report
+4. Auto-converts non-raw images if needed
+5. Displays `mmls` partition layout — user selects the Windows partition interactively (or `-o` bypasses this)
+6. Checks for BitLocker encryption
+7. Extracts `$MFT` and `$LogFile` by fixed NTFS inode
+8. Builds full filesystem listing once with `fls -r -p` (full paths)
+9. Extracts individual targeted files in parallel (`-j` jobs)
+10. Extracts full directory collections in parallel
+11. Runs `tsk_recover` (unallocated/deleted files) concurrently in the background
+12. Generates summary report with MD5 count
 
 **Error Handling:**
-- Validates all inputs
-- Checks file existence and permissions
-- Detects encrypted volumes
-- Handles extraction failures gracefully
-- Provides detailed error messages
+- Validates all inputs and checks file existence/permissions
+- Detects encrypted volumes (BitLocker)
+- Verifies available disk space before image conversion
+- Handles extraction failures gracefully with per-file warnings
+- Provides detailed timestamped error messages in log
 
 ## 📁 Project Structure
 
