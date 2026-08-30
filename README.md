@@ -25,6 +25,7 @@ This repository provides a comprehensive set of forensic scripts for analyzing d
 | Script | Description | Platform |
 |--------|-------------|----------|
 | `Forensic_Collector_Win.sh` | Extracts Windows system artifacts from disk images | Linux/WSL |
+| `apache2time.py` | Converts Apache access/error logs to Timesketch import format (JSONL/CSV) | Cross-platform (Python 3) |
 
 ## 🔧 Requirements
 
@@ -33,6 +34,7 @@ This repository provides a comprehensive set of forensic scripts for analyzing d
 - **Bash** (version 4.0 or higher)
 - **SleuthKit (TSK)** - Required for disk image analysis
 - **Core utilities**: `dd`, `xxd`, `md5sum`, `grep`, `awk`, `cut`
+- **Python 3** (no third-party dependencies) - Required for `apache2time.py`
 
 ### Installing SleuthKit
 
@@ -133,6 +135,35 @@ Use command-line arguments to avoid interactive prompts:
 ./Forensic_Collector_Win.sh -d "Case_2024_001" -e "/mnt/evidence/disk_image.dd" -o 2048 -j 8
 ```
 
+### Apache to Timesketch Converter
+
+The `apache2time.py` script converts Apache access and error logs into a format ready for import into [Google Timesketch](https://timesketch.org/) (JSONL or CSV).
+
+```bash
+./apache2time.py /var/log/apache2/ -o web01.jsonl --auto-tag --dedup
+./apache2time.py /logs/ -r --split -o /tmp/out --tz "+02:00"
+./apache2time.py "/logs/*.access.log*" -o out.jsonl
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `inputs` | Files, directories, glob patterns, or `-` for stdin |
+| `-o, --output` | Output file (or prefix if `--split`) |
+| `-r, --recursive` | Walk subdirectories |
+| `--pattern` | Filename pattern to keep (repeatable). Default: `*.log`, `*.log.*`, `access*`, `error*`, `*.gz` |
+| `--exclude` | Regex of paths to exclude |
+| `--type` | `access`, `error`, or `auto` (default) |
+| `--format` | `jsonl` (default) or `csv` |
+| `--split` | Separate access/error output files (prefix = `--output`) |
+| `--auto-tag` | Automatically tag suspicious/notable events |
+| `--dedup` | Deduplicate overlapping entries between rotated files |
+| `--tz` | Timezone applied to timestamps without an offset (error log), e.g. `+02:00` |
+| `--host` | Hostname to force (otherwise guessed from the directory tree) |
+| `--no-source-path` | Do not add the `log_file` field |
+| `--dry-run` | List the files that would be processed, then exit |
+
 ## 📖 Script Documentation
 
 ### Forensic_Collector_Win.sh
@@ -220,12 +251,35 @@ CaseDirectory/
 - Handles extraction failures gracefully with per-file warnings
 - Provides detailed timestamped error messages in log
 
+### apache2time.py
+
+**Description:**
+Converts Apache access and error logs into a Google Timesketch import format (JSONL or CSV). Accepts a single file, a glob pattern, or a full directory (recursively). Handles rotated (`.1`, `.2.gz`...) and compressed (`.gz`, `.bz2`, `.xz`) logs.
+
+**Supported Formats:**
+- Access log: `common`, `combined`, `vhost_combined` (auto-detected)
+- Error log: Apache 2.2 and 2.4
+
+**Features:**
+- ✅ Auto-detection of access vs. error log lines
+- ✅ Recursive directory discovery with configurable filename patterns
+- ✅ Rotation-aware ordering and cross-file deduplication (`--dedup`)
+- ✅ Transparent decompression (`.gz`, `.bz2`, `.xz`)
+- ✅ Automatic tagging of suspicious activity (scanner user agents, path traversal, SQLi/XSS patterns, error levels)
+- ✅ Hostname inference from directory structure, or manual override (`--host`)
+- ✅ JSONL or CSV output, combined or split by log type (`--split`)
+- ✅ Per-file parsing summary and warnings for mostly-unparsed files (custom `LogFormat`)
+
+**Output Fields:**
+`datetime`, `message`, `timestamp_desc`, `data_type`, `client_ip`, `user`, `http_method`, `uri`, `http_status`, `bytes_sent`, `referer`, `user_agent`, `vhost`, `log_level`, `error_message`, `log_file`, `log_host`, `tag`, and more — see `ALL_FIELDS` in the script for the full CSV column set.
+
 ## 📁 Project Structure
 
 ```
 Forensic-Scripts/
 ├── README.md                    # This file
 ├── Forensic_Collector_Win.sh    # Windows artifact extraction script
+├── apache2time.py               # Apache log -> Timesketch converter
 └── [Future scripts...]          # Additional forensic scripts
 ```
 
