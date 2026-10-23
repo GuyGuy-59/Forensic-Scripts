@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# DuckDB cache files created next to the analysed CSV
+*.duckdb
+*.duckdb.wal
+
+# Never commit evidence or exports
+*.csv

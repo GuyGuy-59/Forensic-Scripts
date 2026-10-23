@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# DuckDB caches created next to analysed CSVs
+*.duckdb
+*.duckdb.wal
+
+# Evidence and case output — never commit
+*.dd
+*.raw
+*.vmdk
+*.vhd
+*.vhdx
+*.qcow2
+*.img
+*.e01
+*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

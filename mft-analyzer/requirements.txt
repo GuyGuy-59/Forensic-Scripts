@@ -1,0 +1,6 @@
+# tkinter is also required, but it ships with Python and cannot be installed with pip.
+# Missing? See "Tkinter notes" in README.md (python.org installer > Modify > "tcl/tk and IDLE",
+# or python3-tk / tk / python-tk with your package manager).
+duckdb>=0.10
+# Optional: exfiltration score histogram
+matplotlib>=3.5
