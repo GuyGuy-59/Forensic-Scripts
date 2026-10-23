@@ -81,4 +81,4 @@ Forensic-Scripts/
 
 ## License
 
-[GNU General Public License v3.0](LICENSE) — Guillaume Morelle
+[GNU General Public License v3.0](LICENSE)
